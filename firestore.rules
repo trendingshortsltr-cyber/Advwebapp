@@ -1,0 +1,167 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ══════════════════════════════════════════════════════════════════
+    // SECURITY HELPERS
+    // ══════════════════════════════════════════════════════════════════
+
+    // User must be signed in via Firebase Auth
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // User must be signed in AND their email must be verified
+    function isVerified() {
+      return isSignedIn()
+        && request.auth.token.email_verified == true;
+    }
+
+    // User must own the document (ownerId must match their UID)
+    function isOwner(doc) {
+      return isVerified()
+        && request.auth.uid == doc.data.ownerId;
+    }
+
+    // Get the role of the requesting user in a shared case
+    function memberRole(doc) {
+      return isVerified() && request.auth.uid in doc.data.members
+        ? doc.data.members[request.auth.uid]
+        : null;
+    }
+
+    // Can the user edit this document?
+    function canEdit(doc) {
+      return isOwner(doc) || memberRole(doc) == 'edit';
+    }
+
+    // Can the user read this document?
+    function canRead(doc) {
+      return isOwner(doc) || memberRole(doc) != null;
+    }
+
+    // Validate string: must be a non-empty string within a max length
+    function validStr(val, maxLen) {
+      return val is string && val.size() > 0 && val.size() <= maxLen;
+    }
+
+    // Validate optional string: if present, must be within max length
+    function validOptStr(data, field, maxLen) {
+      return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // DENY EVERYTHING BY DEFAULT
+    // Any path not explicitly matched below is DENIED automatically.
+    // ══════════════════════════════════════════════════════════════════
+
+    // ── PROFILES ─────────────────────────────────────────────────────
+    // Each advocate has a profile document. Only they can read/write it.
+    // No one — not even members — can read another advocate's profile.
+    match /profiles/{uid} {
+      // Only the exact owner, verified, can read their own profile
+      allow read: if isVerified() && request.auth.uid == uid;
+
+      // Only owner can create their own profile; cannot set a 'role' field
+      allow create: if isVerified()
+        && request.auth.uid == uid
+        && !('role' in request.resource.data)
+        && validStr(request.resource.data.displayName, 100)
+        && validStr(request.resource.data.email, 200);
+
+      // Only owner can update; cannot change role, UID, or email
+      allow update: if isVerified()
+        && request.auth.uid == uid
+        && !request.resource.data.diff(resource.data)
+            .affectedKeys().hasAny(['role', 'uid', 'email']);
+
+      // Profiles can never be deleted from the client
+      allow delete: if false;
+    }
+
+    // ── CASES ────────────────────────────────────────────────────────
+    // A case belongs to one advocate (ownerId). Team members can be granted
+    // view or edit access. No one else can access ANY case data.
+    match /cases/{caseId} {
+
+      // Only the owner or an explicitly added member can read a case
+      allow read: if canRead(resource);
+
+      // Creating a new case — strict validation to prevent junk data injection
+      allow create: if isVerified()
+        // Owner must be the one creating
+        && request.resource.data.ownerId == request.auth.uid
+        // Members must be empty on creation — added later via secure process
+        && request.resource.data.members == {}
+        && request.resource.data.memberIds == []
+        // Required fields — validated for type and length
+        && validStr(request.resource.data.clientName, 200)
+        && validStr(request.resource.data.caseNumber, 100)
+        && validStr(request.resource.data.court, 200)
+        && request.resource.data.status in ['Active', 'Closed']
+        && request.resource.data.deletedAt == null
+        // Optional fields — still validated if present
+        && validOptStr(request.resource.data, 'clientPhone', 20)
+        && validOptStr(request.resource.data, 'caseType', 100)
+        && validOptStr(request.resource.data, 'oppositeParty', 200)
+        && validOptStr(request.resource.data, 'cnrNumber', 50)
+        && validOptStr(request.resource.data, 'stage', 100)
+        && validOptStr(request.resource.data, 'notes', 5000);
+
+      // Updating a case — owner can change most fields; members can only update notes
+      allow update: if isVerified() && (
+        // OWNER can change anything except ownership and membership
+        (isOwner(resource)
+          && !request.resource.data.diff(resource.data)
+              .affectedKeys().hasAny(['ownerId', 'members', 'memberIds']))
+        ||
+        // EDIT MEMBER can only touch notes, nextHearingDate, and updatedAt
+        (memberRole(resource) == 'edit'
+          && request.resource.data.diff(resource.data)
+              .affectedKeys().hasOnly(['notes', 'nextHearingDate', 'updatedAt']))
+      );
+
+      // Hard delete is DISABLED — use soft delete (set deletedAt) instead
+      allow delete: if false;
+
+      // ── HEARINGS (subcollection) ────────────────────────────────────
+      // Hearings are private sub-documents of a case.
+      // Access is inherited strictly from the parent case's permissions.
+      match /hearings/{hId} {
+
+        // Only those who can read the parent case can read its hearings
+        allow read: if canRead(get(/databases/$(database)/documents/cases/$(caseId)));
+
+        // Create a hearing — must have a valid date format
+        allow create: if canEdit(get(/databases/$(database)/documents/cases/$(caseId)))
+          && validStr(request.resource.data.date, 10)
+          && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && validOptStr(request.resource.data, 'time', 20)
+          && validOptStr(request.resource.data, 'notes', 2000)
+          && validOptStr(request.resource.data, 'result', 500);
+
+        // Update a hearing — only editors of the parent case
+        allow update: if canEdit(get(/databases/$(database)/documents/cases/$(caseId)));
+
+        // Delete a hearing — only the owner of the parent case
+        allow delete: if isOwner(get(/databases/$(database)/documents/cases/$(caseId)));
+      }
+    }
+
+    // ── SENSITIVE COLLECTIONS — SERVER ONLY ─────────────────────────
+    // These collections are managed exclusively by the Firebase Admin SDK
+    // (server-side). No client — authenticated or not — can touch them.
+
+    match /invites/{tokenHash} {
+      allow read, write: if false;
+    }
+
+    match /auditLog/{logId} {
+      allow read, write: if false;
+    }
+
+    match /inviteLimits/{advocateId} {
+      allow read, write: if false;
+    }
+  }
+}

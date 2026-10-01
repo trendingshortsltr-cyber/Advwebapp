@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AdvDiary 2.0 — Design Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy-900:#0B2A5B;--navy-800:#0D3270;--navy-700:#1649A0;--navy-600:#1E5CC7;
+  --gold-500:#D97706;--gold-400:#F59E0B;--gold-200:#FDE68A;
+  --slate-50:#F8FAFC;--slate-100:#F1F5F9;--slate-200:#E2E8F0;
+  --slate-400:#94A3B8;--slate-500:#64748B;--slate-600:#475569;--slate-800:#1E293B;
+  --green:#16A34A;--amber:#D97706;--red:#DC2626;--grey:#94A3B8;
+  --surface:#FFFFFF;--bg:var(--slate-50);
+  --radius-card:14px;--radius-chip:100px;--radius-sheet:20px;
+  --shadow-card:0 1px 4px rgba(11,42,91,.08),0 0 0 1px rgba(11,42,91,.06);
+  --shadow-float:0 8px 32px rgba(11,42,91,.18);
+  --dur:180ms;--ease:cubic-bezier(.4,0,.2,1);
+}
+[data-theme="dark"]{
+  --bg:#0B1220;--surface:#141E30;--slate-50:#141E30;--slate-100:#1C2A3F;
+  --slate-200:#243249;--slate-400:#64748B;--slate-500:#94A3B8;
+  --slate-600:#CBD5E1;--slate-800:#F1F5F9;
+  --shadow-card:0 1px 4px rgba(0,0,0,.4),0 0 0 1px rgba(255,255,255,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#1a1a2e;min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;padding:24px 16px 40px}
+
+/* ── Page chrome ── */
+.page-title{color:#fff;font-size:22px;font-weight:700;margin-bottom:4px;text-align:center}
+.page-sub{color:rgba(255,255,255,.5);font-size:13px;margin-bottom:28px;text-align:center}
+.screen-switcher{display:flex;gap:8px;margin-bottom:28px;background:rgba(255,255,255,.08);
+  border-radius:100px;padding:4px}
+.sw-btn{padding:8px 18px;border:none;border-radius:100px;font-family:inherit;font-size:13px;
+  font-weight:500;cursor:pointer;transition:all var(--dur) var(--ease);color:rgba(255,255,255,.6);
+  background:transparent}
+.sw-btn.active{background:#fff;color:#0B2A5B;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+
+/* ── Phone shell ── */
+.phone{width:375px;height:780px;background:var(--bg);border-radius:44px;overflow:hidden;
+  position:relative;box-shadow:0 32px 80px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.1),
+  inset 0 0 0 10px #111;display:flex;flex-direction:column}
+.phone-notch{width:120px;height:28px;background:#111;border-radius:0 0 18px 18px;
+  position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:10}
+
+/* ── Screen ── */
+.screen{display:none;flex-direction:column;height:100%;overflow:hidden;padding-top:44px}
+.screen.active{display:flex}
+.scroll-area{flex:1;overflow-y:auto;padding:0 16px 16px;scrollbar-width:none}
+.scroll-area::-webkit-scrollbar{display:none}
+
+/* ── Header ── */
+.app-header{padding:20px 16px 12px;background:var(--bg)}
+.greeting{font-size:12px;color:var(--slate-400);font-weight:500;margin-bottom:2px}
+.greeting-name{font-size:20px;font-weight:700;color:var(--navy-900)}
+[data-theme="dark"] .greeting-name{color:#fff}
+.date-line{font-size:13px;color:var(--slate-500);margin-top:2px}
+
+/* ── Summary card ── */
+.summary-card{background:var(--navy-900);border-radius:var(--radius-card);
+  padding:16px;margin:0 16px 16px;color:#fff;display:flex;justify-content:space-between;align-items:center;
+  box-shadow:0 4px 16px rgba(11,42,91,.3)}
+.summary-label{font-size:13px;color:rgba(255,255,255,.65);margin-bottom:4px}
+.summary-count{font-size:28px;font-weight:700;line-height:1}
+.summary-sub{font-size:12px;color:rgba(255,255,255,.5);margin-top:2px}
+.summary-icon{width:48px;height:48px;background:rgba(255,255,255,.12);border-radius:12px;
+  display:flex;align-items:center;justify-content:center}
+
+/* ── Section label ── */
+.section-label{font-size:11px;font-weight:600;color:var(--slate-400);
+  text-transform:uppercase;letter-spacing:.06em;margin:16px 0 8px}
+
+/* ── Case card ── */
+.case-card{background:var(--surface);border-radius:var(--radius-card);
+  box-shadow:var(--shadow-card);padding:14px 14px 14px 0;
+  display:flex;margin-bottom:10px;cursor:pointer;
+  transition:transform var(--dur) var(--ease),box-shadow var(--dur) var(--ease);
+  overflow:hidden;position:relative}
+.case-card:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(11,42,91,.12),0 0 0 1px rgba(11,42,91,.06)}
+.card-border{width:4px;border-radius:4px 0 0 4px;margin-right:14px;flex-shrink:0}
+.border-active{background:var(--green)}
+.border-today{background:var(--amber)}
+.border-overdue{background:var(--red)}
+.border-closed{background:var(--grey)}
+.card-body{flex:1;min-width:0}
+.card-client{font-size:15px;font-weight:600;color:var(--slate-800);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-meta{font-size:12px;color:var(--slate-400);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:var(--radius-chip);
+  font-size:11px;font-weight:600}
+.chip-active{background:#DCFCE7;color:#15803D}
+.chip-today{background:#FEF3C7;color:#B45309}
+.chip-overdue{background:#FEE2E2;color:#B91C1C}
+.chip-closed{background:var(--slate-100);color:var(--slate-500)}
+.date-chip{font-size:11px;color:var(--slate-400);font-weight:500}
+.card-actions{display:flex;gap:6px;margin-top:10px}
+.card-action-btn{display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:100px;
+  border:1px solid var(--slate-200);background:var(--surface);font-size:11px;font-weight:500;
+  color:var(--slate-600);cursor:pointer;transition:all 120ms var(--ease)}
+.card-action-btn:hover{background:var(--slate-100)}
+.card-action-btn.call:hover{border-color:var(--green);color:var(--green)}
+.card-action-btn.wa:hover{border-color:#25D366;color:#25D366}
+
+/* ── Bottom nav ── */
+.bottom-nav{background:var(--surface);border-top:1px solid var(--slate-200);
+  padding:8px 16px 20px;display:flex;justify-content:space-around;flex-shrink:0}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;
+  cursor:pointer;padding:6px 12px;border-radius:12px;transition:background var(--dur) var(--ease)}
+.nav-item.active{background:rgba(11,42,91,.06)}
+.nav-icon{width:22px;height:22px;color:var(--slate-400)}
+.nav-item.active .nav-icon{color:var(--navy-900)}
+.nav-label{font-size:10px;font-weight:500;color:var(--slate-400)}
+.nav-item.active .nav-label{color:var(--navy-900);font-weight:600}
+.nav-active-pill{width:18px;height:3px;background:var(--navy-900);
+  border-radius:100px;margin-top:2px;display:none}
+.nav-item.active .nav-active-pill{display:block}
+
+/* ── FAB ── */
+.fab{position:absolute;bottom:80px;right:20px;width:52px;height:52px;
+  background:var(--gold-500);border-radius:16px;display:flex;align-items:center;
+  justify-content:center;box-shadow:0 4px 16px rgba(217,119,6,.4);
+  cursor:pointer;transition:transform var(--dur),box-shadow var(--dur);z-index:5}
+.fab:hover{transform:scale(1.05);box-shadow:0 8px 24px rgba(217,119,6,.5)}
+
+/* ── Case detail ── */
+.detail-header{background:var(--navy-900);padding:20px 16px 20px;color:#fff;position:relative}
+.detail-back{display:flex;align-items:center;gap:6px;font-size:13px;
+  color:rgba(255,255,255,.65);margin-bottom:16px;cursor:pointer}
+.detail-status{display:inline-flex;align-items:center;gap:5px;
+  background:rgba(255,255,255,.15);padding:4px 10px;border-radius:100px;
+  font-size:11px;font-weight:600;color:#fff;margin-bottom:10px}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.detail-client{font-size:22px;font-weight:700;margin-bottom:4px}
+.detail-meta{font-size:13px;color:rgba(255,255,255,.65);line-height:1.5}
+.detail-tags{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.detail-tag{background:rgba(255,255,255,.12);padding:4px 10px;border-radius:100px;
+  font-size:11px;color:rgba(255,255,255,.8)}
+.tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--slate-200);
+  padding:0 16px;gap:4px}
+.tab{padding:12px 14px;font-size:13px;font-weight:500;color:var(--slate-400);
+  cursor:pointer;border-bottom:2px solid transparent;transition:all var(--dur) var(--ease)}
+.tab.active{color:var(--navy-900);border-color:var(--navy-900);font-weight:600}
+.hearing-item{background:var(--surface);border-radius:var(--radius-card);
+  box-shadow:var(--shadow-card);padding:14px;margin-bottom:10px}
+.hearing-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.hearing-date{font-size:13px;font-weight:600;color:var(--slate-800)}
+.hearing-time{font-size:12px;color:var(--slate-400)}
+.hearing-note{font-size:13px;color:var(--slate-600);line-height:1.4}
+.hearing-result{margin-top:8px;padding-top:8px;border-top:1px solid var(--slate-100);
+  font-size:12px;color:var(--slate-500)}
+.quick-btn{display:flex;align-items:center;gap:6px;padding:8px 14px;
+  background:var(--navy-900);color:#fff;border-radius:100px;font-size:12px;font-weight:600;
+  cursor:pointer;width:fit-content;margin-top:8px}
+
+/* ── Add Case sheet ── */
+.sheet-overlay{position:absolute;inset:0;background:rgba(11,42,91,.25);z-index:20;
+  display:flex;flex-direction:column;justify-content:flex-end}
+.sheet{background:var(--surface);border-radius:var(--radius-sheet) var(--radius-sheet) 0 0;
+  padding:0 0 20px;max-height:88%}
+.sheet-handle{width:36px;height:4px;background:var(--slate-200);border-radius:100px;
+  margin:12px auto 0}
+.sheet-header{padding:16px 20px 12px;border-bottom:1px solid var(--slate-100)}
+.sheet-title{font-size:17px;font-weight:700;color:var(--slate-800)}
+.sheet-sub{font-size:12px;color:var(--slate-400);margin-top:2px}
+.sheet-body{padding:16px 20px;overflow-y:auto;max-height:500px}
+.field-group{margin-bottom:16px}
+.field-label{font-size:12px;font-weight:600;color:var(--slate-600);margin-bottom:6px;
+  display:flex;align-items:center;gap:4px}
+.required-dot{width:5px;height:5px;background:var(--red);border-radius:50%}
+.field-input{width:100%;padding:11px 14px;border:1.5px solid var(--slate-200);
+  border-radius:10px;font-family:inherit;font-size:15px;color:var(--slate-800);
+  background:var(--surface);outline:none;transition:border-color var(--dur)}
+.field-input:focus{border-color:var(--navy-700)}
+.field-input::placeholder{color:var(--slate-400)}
+.collapsible-toggle{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 0;cursor:pointer;border-top:1px solid var(--slate-100)}
+.collapsible-label{font-size:13px;font-weight:600;color:var(--slate-500)}
+.sheet-footer{padding:12px 20px 0;border-top:1px solid var(--slate-100)}
+.save-btn{width:100%;padding:14px;background:var(--navy-900);color:#fff;
+  border:none;border-radius:12px;font-family:inherit;font-size:15px;font-weight:600;
+  cursor:pointer;transition:background var(--dur)}
+.save-btn:hover{background:var(--navy-800)}
+.draft-label{text-align:center;font-size:11px;color:var(--slate-400);margin-top:8px}
+
+/* ── SVG Icons ── */
+svg{display:block}
+
+/* ── Dark toggle ── */
+.dark-toggle{position:fixed;top:16px;right:16px;background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.2);color:#fff;padding:6px 14px;border-radius:100px;
+  font-size:12px;font-weight:500;cursor:pointer;font-family:inherit}
+</style>
+</head>
+<body>
+
+<button class="dark-toggle" onclick="toggleDark()">🌙 Dark</button>
+
+<p class="page-title">AdvDiary 2.0 — Design Preview</p>
+<p class="page-sub">Phase 0 · Today · Case Detail · Add Case</p>
+
+<div class="screen-switcher">
+  <button class="sw-btn active" onclick="showScreen('today',this)">Today</button>
+  <button class="sw-btn" onclick="showScreen('detail',this)">Case Detail</button>
+  <button class="sw-btn" onclick="showScreen('add',this)">Add Case</button>
+</div>
+
+<div class="phone">
+  <div class="phone-notch"></div>
+
+  <!-- ════════════════ TODAY ════════════════ -->
+  <div class="screen active" id="screen-today">
+    <div class="app-header">
+      <div class="greeting">Good morning,</div>
+      <div class="greeting-name">Adv. Sharma 👋</div>
+      <div class="date-line">Tuesday, 29 September 2026</div>
+    </div>
+
+    <div class="summary-card">
+      <div>
+        <div class="summary-label">Today's hearings</div>
+        <div class="summary-count">3</div>
+        <div class="summary-sub">2 overdue · 1 upcoming</div>
+      </div>
+      <div class="summary-icon">
+        <svg width="24" height="24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="1.75" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/>
+          <circle cx="12" cy="16" r="2" fill="rgba(255,255,255,.9)" stroke="none"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="scroll-area">
+      <div class="section-label">Overdue</div>
+
+      <div class="case-card">
+        <div class="card-border border-overdue"></div>
+        <div class="card-body">
+          <div class="card-client">Rajesh Kumar Sharma</div>
+          <div class="card-meta">CWP/4521/2024 · High Court, Bombay</div>
+          <div class="card-footer">
+            <span class="chip chip-overdue">
+              <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>
+              Overdue
+            </span>
+            <span class="date-chip">Was 27 Sep</span>
+          </div>
+          <div class="card-actions">
+            <button class="card-action-btn call">
+              <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.69A2 2 0 012 0h3.09a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 15z"/></svg>
+              Call
+            </button>
+            <button class="card-action-btn wa">
+              <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8z"/></svg>
+              WhatsApp
+            </button>
+            <button class="card-action-btn" onclick="showScreen('detail',null)">Open →</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="case-card">
+        <div class="card-border border-overdue"></div>
+        <div class="card-body">
+          <div class="card-client">Priya Mehta</div>
+          <div class="card-meta">CC/881/2023 · Sessions Court, Pune</div>
+          <div class="card-footer">
+            <span class="chip chip-overdue">
+              <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>
+              Overdue
+            </span>
+            <span class="date-chip">Was 28 Sep</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-label">Today</div>
+
+      <div class="case-card">
+        <div class="card-border border-today"></div>
+        <div class="card-body">
+          <div class="card-client">Sunil Patil Contractors</div>
+          <div class="card-meta">CS/1102/2024 · District Court, Nagpur</div>
+          <div class="card-footer">
+            <span class="chip chip-today">
+              <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>
+              Today · 11:00 AM
+            </span>
+            <span class="date-chip">29 Sep</span>
+          </div>
+          <div class="card-actions">
+            <button class="card-action-btn call">
+              <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.69A2 2 0 012 0h3.09a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 15z"/></svg>
+              Call
+            </button>
+            <button class="card-action-btn wa">
+              <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8z"/></svg>
+              WhatsApp
+            </button>
+            <button class="card-action-btn" onclick="showScreen('detail',null)">Open →</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-label">Upcoming (next 7 days)</div>
+
+      <div class="case-card">
+        <div class="card-border border-active"></div>
+        <div class="card-body">
+          <div class="card-client">Anita Singh</div>
+          <div class="card-meta">WA/209/2024 · Family Court, Mumbai</div>
+          <div class="card-footer">
+            <span class="chip chip-active">
+              <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>
+              Active
+            </span>
+            <span class="date-chip">3 Oct</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fab" onclick="showScreen('add',null)">
+      <svg width="24" height="24" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24">
+        <path d="M12 5v14M5 12h14"/>
+      </svg>
+    </div>
+
+    <nav class="bottom-nav">
+      <div class="nav-item active">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        <span class="nav-label">Today</span>
+        <div class="nav-active-pill"></div>
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+        <span class="nav-label">Cases</span>
+        <div class="nav-active-pill"></div>
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        <span class="nav-label">Calendar</span>
+        <div class="nav-active-pill"></div>
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        <span class="nav-label">Team</span>
+        <div class="nav-active-pill"></div>
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span class="nav-label">Profile</span>
+        <div class="nav-active-pill"></div>
+      </div>
+    </nav>
+  </div>
+
+  <!-- ════════════════ CASE DETAIL ════════════════ -->
+  <div class="screen" id="screen-detail">
+    <div class="detail-header">
+      <div class="detail-back" onclick="showScreen('today',null)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Today
+      </div>
+      <span class="detail-status">
+        <span class="dot" style="color:var(--gold-400)"></span>
+        Active
+      </span>
+      <div class="detail-client">Sunil Patil Contractors</div>
+      <div class="detail-meta">CS/1102/2024 &nbsp;·&nbsp; District Court, Nagpur<br>Opposite: State of Maharashtra</div>
+      <div class="detail-tags">
+        <span class="detail-tag">Civil Suit</span>
+        <span class="detail-tag">Argument stage</span>
+        <span class="detail-tag">CNR: MHNG010001102024</span>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active">Hearings</div>
+      <div class="tab">Notes</div>
+      <div class="tab">Members</div>
+    </div>
+
+    <div class="scroll-area" style="padding-top:12px">
+
+      <div class="hearing-item" style="border-left:3px solid var(--amber);padding-left:11px">
+        <div class="hearing-top">
+          <div>
+            <div class="hearing-date">Today — 29 Sep 2026</div>
+            <div class="hearing-time">11:00 AM</div>
+          </div>
+          <span class="chip chip-today">Due today</span>
+        </div>
+        <div class="hearing-note">Final arguments scheduled. Review documents before court.</div>
+        <div class="quick-btn">
+          <svg width="14" height="14" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+          Mark Done
+        </div>
+      </div>
+
+      <div class="hearing-item">
+        <div class="hearing-top">
+          <div>
+            <div class="hearing-date">15 Sep 2026</div>
+            <div class="hearing-time">10:30 AM</div>
+          </div>
+          <span class="chip chip-closed">Completed</span>
+        </div>
+        <div class="hearing-note">Written statement filed by defendant.</div>
+        <div class="hearing-result">Result: Adjourned for arguments → 29 Sep</div>
+      </div>
+
+      <div class="hearing-item">
+        <div class="hearing-top">
+          <div>
+            <div class="hearing-date">2 Aug 2026</div>
+            <div class="hearing-time">11:00 AM</div>
+          </div>
+          <span class="chip chip-closed">Completed</span>
+        </div>
+        <div class="hearing-note">Summons served. Defendant appeared.</div>
+        <div class="hearing-result">Result: Written statement due 15 Sep</div>
+      </div>
+
+      <div class="hearing-item">
+        <div class="hearing-top">
+          <div>
+            <div class="hearing-date">10 Jul 2026</div>
+            <div class="hearing-time">10:00 AM</div>
+          </div>
+          <span class="chip chip-closed">Completed</span>
+        </div>
+        <div class="hearing-note">Case filed and admitted.</div>
+        <div class="hearing-result">Result: Summons issued</div>
+      </div>
+
+    </div>
+
+    <nav class="bottom-nav">
+      <div class="nav-item">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        <span class="nav-label">Today</span><div class="nav-active-pill"></div>
+      </div>
+      <div class="nav-item active">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+        <span class="nav-label">Cases</span><div class="nav-active-pill"></div>
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        <span class="nav-label">Calendar</span><div class="nav-active-pill"></div>
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        <span class="nav-label">Team</span><div class="nav-active-pill"></div>
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span class="nav-label">Profile</span><div class="nav-active-pill"></div>
+      </div>
+    </nav>
+  </div>
+
+  <!-- ════════════════ ADD CASE ════════════════ -->
+  <div class="screen" id="screen-add" style="background:var(--bg)">
+    <div class="app-header">
+      <div class="greeting-name">Cases</div>
+    </div>
+    <div class="scroll-area">
+      <div class="case-card" style="opacity:.4">
+        <div class="card-border border-active"></div>
+        <div class="card-body">
+          <div class="card-client">Anita Singh</div>
+          <div class="card-meta">WA/209/2024 · Family Court, Mumbai</div>
+          <div class="card-footer"><span class="chip chip-active">Active</span><span class="date-chip">3 Oct</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sheet overlay -->
+    <div class="sheet-overlay">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <div class="sheet-title">New Case</div>
+          <div class="sheet-sub">Draft auto-saved</div>
+        </div>
+        <div class="sheet-body">
+          <div class="field-group">
+            <div class="field-label"><div class="required-dot"></div> Client Name</div>
+            <input class="field-input" placeholder="e.g. Rajesh Kumar Sharma" autofocus>
+          </div>
+          <div class="field-group">
+            <div class="field-label"><div class="required-dot"></div> Case Number</div>
+            <input class="field-input" placeholder="e.g. CWP/4521/2024">
+          </div>
+          <div class="field-group">
+            <div class="field-label"><div class="required-dot"></div> Court</div>
+            <input class="field-input" placeholder="e.g. High Court, Bombay">
+          </div>
+
+          <div class="collapsible-toggle" onclick="toggleCollapse()">
+            <span class="collapsible-label">More details (optional)</span>
+            <svg id="collapse-icon" width="16" height="16" fill="none" stroke="var(--slate-400)" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div id="collapse-body" style="display:none">
+            <div class="field-group" style="margin-top:12px">
+              <div class="field-label">Client Phone</div>
+              <input class="field-input" type="tel" placeholder="+91 98765 43210">
+            </div>
+            <div class="field-group">
+              <div class="field-label">Case Type</div>
+              <input class="field-input" placeholder="e.g. Civil, Criminal, Family">
+            </div>
+            <div class="field-group">
+              <div class="field-label">Opposite Party</div>
+              <input class="field-input" placeholder="e.g. State of Maharashtra">
+            </div>
+            <div class="field-group">
+              <div class="field-label">CNR Number</div>
+              <input class="field-input" placeholder="e.g. MHNG01...">
+            </div>
+            <div class="field-group">
+              <div class="field-label">Stage</div>
+              <input class="field-input" placeholder="e.g. Arguments, Evidence">
+            </div>
+            <div class="field-group">
+              <div class="field-label">Notes</div>
+              <textarea class="field-input" rows="3" placeholder="Case notes…" style="resize:none;line-height:1.5"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="sheet-footer">
+          <button class="save-btn">Save Case</button>
+          <div class="draft-label">Draft saved · Tap anywhere to dismiss</div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="bottom-nav" style="position:relative;z-index:0">
+      <div class="nav-item">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        <span class="nav-label">Today</span><div class="nav-active-pill"></div>
+      </div>
+      <div class="nav-item active">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+        <span class="nav-label">Cases</span><div class="nav-active-pill"></div>
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        <span class="nav-label">Calendar</span><div class="nav-active-pill"></div>
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        <span class="nav-label">Team</span><div class="nav-active-pill"></div>
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span class="nav-label">Profile</span><div class="nav-active-pill"></div>
+      </div>
+    </nav>
+  </div>
+
+</div><!-- /phone -->
+
+<script>
+function showScreen(id, btn) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  if (btn) {
+    document.querySelectorAll('.sw-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  } else {
+    const map = {today:0,detail:1,add:2};
+    document.querySelectorAll('.sw-btn').forEach((b,i) => b.classList.toggle('active', i===map[id]));
+  }
+}
+function toggleCollapse() {
+  const body = document.getElementById('collapse-body');
+  const icon = document.getElementById('collapse-icon');
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  icon.style.transform = open ? 'rotate(180deg)' : '';
+}
+function toggleDark() {
+  const el = document.documentElement;
+  const isDark = el.getAttribute('data-theme') === 'dark';
+  el.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.querySelector('.dark-toggle').textContent = isDark ? '🌙 Dark' : '☀️ Light';
+}
+</script>
+</body>
+</html>
