@@ -1,6 +1,7 @@
 "use client";
 import { useState, useMemo } from 'react';
 import { useStore } from '@/lib/store';
+import { useAuth } from '@/lib/auth';
 import { CaseCard } from '@/components/case-card';
 import { SummaryCard } from '@/components/summary-card';
 import { AddCaseSheet } from '@/components/add-case-sheet';
@@ -9,6 +10,7 @@ import { format, parseISO, isToday, isBefore, startOfDay, addDays } from 'date-f
 
 export default function TodayPage() {
   const { cases, hearings } = useStore();
+  const { user } = useAuth();
   const [addOpen, setAddOpen] = useState(false);
   const today = startOfDay(new Date());
 
@@ -37,19 +39,21 @@ export default function TodayPage() {
     return 'Good evening,';
   })();
 
+  const userName = user?.displayName || 'Advocate';
+  const avatarUrl = user?.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=0B2A5B&color=fff&size=150&bold=true`;
+
   return (
     <div className="page-enter">
       {/* Header */}
       <div className="px-4 pt-5 pb-3 flex items-center justify-between">
         <div>
           <div className="text-xs font-medium text-muted-foreground">{greeting}</div>
-          <div className="text-xl font-bold text-foreground">Adv. Sharma 👋</div>
+          <div className="text-xl font-bold text-foreground">{userName} 👋</div>
           <div className="text-[13px] text-muted-foreground mt-0.5">{format(new Date(), 'EEEE, d MMMM yyyy')}</div>
         </div>
         <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-border shadow-sm flex-shrink-0 bg-slate-100 dark:bg-navy-900">
-          {/* Default fallback avatar from ui-avatars, can be easily replaced by a real photo URL */}
           <img 
-            src="https://ui-avatars.com/api/?name=Adv+Sharma&background=0B2A5B&color=fff&size=150&bold=true" 
+            src={avatarUrl} 
             alt="Advocate Logo/Photo" 
             className="w-full h-full object-cover"
           />
