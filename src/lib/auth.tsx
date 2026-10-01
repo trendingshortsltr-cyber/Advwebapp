@@ -1,6 +1,12 @@
 "use client";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  signInWithRedirect,
+  getRedirectResult,
+  signOut,
+  type User
+} from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
 
 interface AuthCtx {
@@ -17,6 +23,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Handle redirect result when user comes back after Google login
+    getRedirectResult(auth).catch(() => {
+      // Ignore redirect errors silently
+    });
+
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
@@ -25,7 +36,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithGoogle = async () => {
-    await signInWithPopup(auth, googleProvider);
+    // Use redirect — works on all browsers, PWAs, and mobile
+    await signInWithRedirect(auth, googleProvider);
   };
 
   const logout = async () => {
