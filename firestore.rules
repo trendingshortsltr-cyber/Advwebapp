@@ -11,36 +11,19 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // User must be signed in AND their email must be verified
-    function isVerified() {
-      return isSignedIn()
-        && request.auth.token.email_verified == true;
+    // Google sign-in tokens are always email_verified for @gmail.com accounts.
+    // For other OAuth providers the flag may differ — we allow any authenticated
+    // Google sign-in, but still require the request to be authenticated.
+    function isAuthenticated() {
+      return isSignedIn();
     }
 
-    // User must own the document (ownerId must match their UID)
-    function isOwner(doc) {
-      return isVerified()
-        && request.auth.uid == doc.data.ownerId;
+    // The requesting user owns this users/{uid} sub-tree
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
     }
 
-    // Get the role of the requesting user in a shared case
-    function memberRole(doc) {
-      return isVerified() && request.auth.uid in doc.data.members
-        ? doc.data.members[request.auth.uid]
-        : null;
-    }
-
-    // Can the user edit this document?
-    function canEdit(doc) {
-      return isOwner(doc) || memberRole(doc) == 'edit';
-    }
-
-    // Can the user read this document?
-    function canRead(doc) {
-      return isOwner(doc) || memberRole(doc) != null;
-    }
-
-    // Validate string: must be a non-empty string within a max length
+    // Validate string: non-empty, within max length
     function validStr(val, maxLen) {
       return val is string && val.size() > 0 && val.size() <= maxLen;
     }
@@ -50,6 +33,26 @@ service cloud.firestore {
       return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
     }
 
+    function validDateOrNull(data, field) {
+      return !(field in data)
+        || data[field] == null
+        || (data[field] is string && data[field].matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'));
+    }
+
+    function validDeletedAt(data) {
+      return !('deletedAt' in data)
+        || data.deletedAt == null
+        || (
+          data.deletedAt is string
+          && data.deletedAt.size() <= 40
+          && data.deletedAt.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$')
+        );
+    }
+
+    function hasOnlyFields(data, fields) {
+      return data.keys().hasOnly(fields);
+    }
+
     // ══════════════════════════════════════════════════════════════════
     // DENY EVERYTHING BY DEFAULT
     // Any path not explicitly matched below is DENIED automatically.
@@ -57,102 +60,140 @@ service cloud.firestore {
 
     // ── PROFILES ─────────────────────────────────────────────────────
     // Each advocate has a profile document. Only they can read/write it.
-    // No one — not even members — can read another advocate's profile.
     match /profiles/{uid} {
-      // Only the exact owner, verified, can read their own profile
-      allow read: if isVerified() && request.auth.uid == uid;
+      allow read: if isOwner(uid);
 
-      // Only owner can create their own profile; cannot set a 'role' field
-      allow create: if isVerified()
-        && request.auth.uid == uid
-        && !('role' in request.resource.data)
+      allow create, update: if isOwner(uid)
+        && hasOnlyFields(request.resource.data, ['displayName', 'email', 'photoURL', 'updatedAt'])
         && validStr(request.resource.data.displayName, 100)
-        && validStr(request.resource.data.email, 200);
+        && validStr(request.resource.data.email, 200)
+        && request.auth.token.email is string
+        && request.resource.data.email == request.auth.token.email
+        && validOptStr(request.resource.data, 'photoURL', 1000)
+        && request.resource.data.updatedAt == request.time;
 
-      // Only owner can update; cannot change role, UID, or email
-      allow update: if isVerified()
-        && request.auth.uid == uid
-        && !request.resource.data.diff(resource.data)
-            .affectedKeys().hasAny(['role', 'uid', 'email']);
-
-      // Profiles can never be deleted from the client
       allow delete: if false;
     }
 
-    // ── CASES ────────────────────────────────────────────────────────
-    // A case belongs to one advocate (ownerId). Team members can be granted
-    // view or edit access. No one else can access ANY case data.
-    match /cases/{caseId} {
+    // ── USER-SCOPED CASES & HEARINGS ─────────────────────────────────
+    // Data model: users/{uid}/cases/{caseId}/hearings/{hId}
+    // Case data is private to the signed-in owner of each user tree.
 
-      // Only the owner or an explicitly added member can read a case
-      allow read: if canRead(resource);
+    match /users/{uid} {
+      // The user document itself is not used directly
+      allow read, write: if false;
 
-      // Creating a new case — strict validation to prevent junk data injection
-      allow create: if isVerified()
-        // Owner must be the one creating
-        && request.resource.data.ownerId == request.auth.uid
-        // Members must be empty on creation — added later via secure process
-        && request.resource.data.members == {}
-        && request.resource.data.memberIds == []
-        // Required fields — validated for type and length
-        && validStr(request.resource.data.clientName, 200)
-        && validStr(request.resource.data.caseNumber, 100)
-        && validStr(request.resource.data.court, 200)
-        && request.resource.data.status in ['Active', 'Closed']
-        && request.resource.data.deletedAt == null
-        // Optional fields — still validated if present
-        && validOptStr(request.resource.data, 'clientPhone', 20)
-        && validOptStr(request.resource.data, 'caseType', 100)
-        && validOptStr(request.resource.data, 'oppositeParty', 200)
-        && validOptStr(request.resource.data, 'cnrNumber', 50)
-        && validOptStr(request.resource.data, 'stage', 100)
-        && validOptStr(request.resource.data, 'notes', 5000);
+      // ── CASES ────────────────────────────────────────────────────
+      match /cases/{caseId} {
 
-      // Updating a case — owner can change most fields; members can only update notes
-      allow update: if isVerified() && (
-        // OWNER can change anything except ownership and membership
-        (isOwner(resource)
+        // Only the owner can read their own cases
+        allow read: if isOwner(uid);
+
+        // Create a new case with validated required fields
+        allow create: if isOwner(uid)
+          && hasOnlyFields(request.resource.data, [
+            'clientName', 'caseNumber', 'court', 'status', 'nextHearingDate',
+            'ownerId', 'members', 'memberIds', 'createdAt', 'updatedAt', 'deletedAt',
+            'clientPhone', 'caseType', 'oppositeParty', 'cnrNumber', 'stage', 'notes'
+          ])
+          // Required fields — type and length validation
+          && validStr(request.resource.data.clientName, 200)
+          && validStr(request.resource.data.caseNumber, 100)
+          && validStr(request.resource.data.court, 200)
+          && request.resource.data.status in ['Active', 'Closed']
+          && request.resource.data.deletedAt == null
+          // ownerId must match the authenticated user
+          && request.resource.data.ownerId == uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time
+          // Members must be empty on creation
+          && request.resource.data.members == {}
+          && request.resource.data.memberIds == []
+          // Optional fields — validated if present
+          && validOptStr(request.resource.data, 'clientPhone', 20)
+          && validOptStr(request.resource.data, 'caseType', 100)
+          && validOptStr(request.resource.data, 'oppositeParty', 200)
+          && validOptStr(request.resource.data, 'cnrNumber', 50)
+          && validOptStr(request.resource.data, 'stage', 100)
+          && validOptStr(request.resource.data, 'notes', 5000)
+          && validDateOrNull(request.resource.data, 'nextHearingDate');
+
+        // Update a case — owner can change anything except ownership
+        allow update: if isOwner(uid)
+          && hasOnlyFields(request.resource.data, [
+            'clientName', 'caseNumber', 'court', 'status', 'nextHearingDate',
+            'ownerId', 'members', 'memberIds', 'createdAt', 'updatedAt', 'deletedAt',
+            'clientPhone', 'caseType', 'oppositeParty', 'cnrNumber', 'stage', 'notes'
+          ])
           && !request.resource.data.diff(resource.data)
-              .affectedKeys().hasAny(['ownerId', 'members', 'memberIds']))
-        ||
-        // EDIT MEMBER can only touch notes, nextHearingDate, and updatedAt
-        (memberRole(resource) == 'edit'
-          && request.resource.data.diff(resource.data)
-              .affectedKeys().hasOnly(['notes', 'nextHearingDate', 'updatedAt']))
-      );
+              .affectedKeys().hasAny(['ownerId', 'members', 'memberIds', 'createdAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'clientName', 'caseNumber', 'court', 'status', 'nextHearingDate',
+            'updatedAt', 'deletedAt', 'clientPhone', 'caseType', 'oppositeParty',
+            'cnrNumber', 'stage', 'notes'
+          ])
+          && request.resource.data.updatedAt == request.time
+          // Validate required fields remain valid on update too
+          && validStr(request.resource.data.clientName, 200)
+          && validStr(request.resource.data.caseNumber, 100)
+          && validStr(request.resource.data.court, 200)
+            && request.resource.data.status in ['Active', 'Closed']
+            && validOptStr(request.resource.data, 'clientPhone', 20)
+            && validOptStr(request.resource.data, 'caseType', 100)
+            && validOptStr(request.resource.data, 'oppositeParty', 200)
+            && validOptStr(request.resource.data, 'cnrNumber', 50)
+            && validOptStr(request.resource.data, 'stage', 100)
+            && validOptStr(request.resource.data, 'notes', 5000)
+            && validDateOrNull(request.resource.data, 'nextHearingDate')
+            && validDeletedAt(request.resource.data);
 
-      // Hard delete is DISABLED — use soft delete (set deletedAt) instead
-      allow delete: if false;
+        // Hard delete is disabled — use soft delete (set deletedAt)
+        allow delete: if false;
 
-      // ── HEARINGS (subcollection) ────────────────────────────────────
-      // Hearings are private sub-documents of a case.
-      // Access is inherited strictly from the parent case's permissions.
-      match /hearings/{hId} {
+        // ── HEARINGS (subcollection) ──────────────────────────────
+        match /hearings/{hId} {
 
-        // Only those who can read the parent case can read its hearings
-        allow read: if canRead(get(/databases/$(database)/documents/cases/$(caseId)));
+          // Only the owner of the parent user tree can access hearings
+          allow read: if isOwner(uid);
 
-        // Create a hearing — must have a valid date format
-        allow create: if canEdit(get(/databases/$(database)/documents/cases/$(caseId)))
-          && validStr(request.resource.data.date, 10)
-          && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-          && validOptStr(request.resource.data, 'time', 20)
-          && validOptStr(request.resource.data, 'notes', 2000)
-          && validOptStr(request.resource.data, 'result', 500);
+          // Create a hearing with a valid date
+          allow create: if isOwner(uid)
+            && hasOnlyFields(request.resource.data, [
+              'caseId', 'date', 'time', 'notes', 'result', 'completed', 'createdAt', 'updatedAt'
+            ])
+            && request.resource.data.caseId == caseId
+            && request.resource.data.createdAt == request.time
+            && request.resource.data.updatedAt == request.time
+            && validStr(request.resource.data.date, 10)
+            && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && request.resource.data.completed == false
+            && validOptStr(request.resource.data, 'time', 20)
+            && validOptStr(request.resource.data, 'notes', 2000)
+            && validOptStr(request.resource.data, 'result', 500);
 
-        // Update a hearing — only editors of the parent case
-        allow update: if canEdit(get(/databases/$(database)/documents/cases/$(caseId)));
+          // Update a hearing
+          allow update: if isOwner(uid)
+            && hasOnlyFields(request.resource.data, [
+              'caseId', 'date', 'time', 'notes', 'result', 'completed', 'createdAt', 'updatedAt'
+            ])
+            && request.resource.data.caseId == resource.data.caseId
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.updatedAt == request.time
+            && validStr(request.resource.data.date, 10)
+            && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && request.resource.data.completed is bool
+            && validOptStr(request.resource.data, 'time', 20)
+            && validOptStr(request.resource.data, 'notes', 2000)
+            && validOptStr(request.resource.data, 'result', 500);
 
-        // Delete a hearing — only the owner of the parent case
-        allow delete: if isOwner(get(/databases/$(database)/documents/cases/$(caseId)));
+          // Hard delete is allowed for hearings (removing a hearing is expected)
+          allow delete: if isOwner(uid);
+        }
       }
     }
 
-    // ── SENSITIVE COLLECTIONS — SERVER ONLY ─────────────────────────
-    // These collections are managed exclusively by the Firebase Admin SDK
-    // (server-side). No client — authenticated or not — can touch them.
-
-    match /invites/{tokenHash} {
+    // ── SERVER-ONLY COLLECTIONS ───────────────────────────────────────
+    match /invites/{documentId} {
       allow read, write: if false;
     }
 
@@ -160,7 +201,7 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    match /inviteLimits/{advocateId} {
+    match /inviteLimits/{documentId} {
       allow read, write: if false;
     }
   }

@@ -8,6 +8,8 @@ const withSerwist = withSerwistInit({
 });
 
 const nextConfig: NextConfig = {
+  output: "export",
+  trailingSlash: true,
   turbopack: {},
 };
 

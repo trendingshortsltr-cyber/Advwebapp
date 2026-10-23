@@ -1,0 +1,30 @@
+{
+  "packageId": "com.advdiary.app",
+  "host": "adv-diary-100ff.web.app",
+  "name": "AdvDiary 2.0",
+  "launcherName": "AdvDiary",
+  "display": "standalone",
+  "themeColor": "#0B2A5B",
+  "themeColorDark": "#0B2A5B",
+  "navigationColor": "#0B2A5B",
+  "navigationColorDark": "#0B2A5B",
+  "navigationDividerColor": "#0B2A5B",
+  "navigationDividerColorDark": "#0B2A5B",
+  "backgroundColor": "#F8FAFC",
+  "enableNotifications": false,
+  "startUrl": "/",
+  "iconUrl": "https://adv-diary-100ff.web.app/icons/advdiary-512.png",
+  "maskableIconUrl": "https://adv-diary-100ff.web.app/icons/advdiary-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "advdiary-release.jks",
+    "alias": "advdiary"
+  },
+  "appVersionCode": 1,
+  "appVersion": "1.0.0",
+  "webManifestUrl": "https://adv-diary-100ff.web.app/manifest.json",
+  "fallbackType": "customtabs",
+  "enableSiteSettingsShortcut": true,
+  "orientation": "portrait",
+  "fingerprints": []
+}

@@ -16,9 +16,19 @@
 # next.js
 /.next/
 /out/
+/.firebase/
+/public/sw.js
 
 # production
 /build
+/android-twa/.gradle/
+/android-twa/.idea/
+/android-twa/local.properties
+/android-twa/app/build/
+/android-twa/*.jks
+/android-twa/*.keystore
+/android-twa/*.apk
+/android-twa/*.aab
 
 # misc
 .DS_Store
@@ -32,6 +42,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel

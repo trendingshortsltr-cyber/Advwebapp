@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import { useRouter } from 'next/navigation';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, parseISO, isSameDay } from 'date-fns';
+import { format, startOfDay, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay } from 'date-fns';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function CalendarPage() {
@@ -26,13 +26,21 @@ export default function CalendarPage() {
     return map;
   }, [hearings]);
 
-  const selectedHearings = useMemo(() => {
+  const selectedCases = useMemo(() => {
     if (!selectedDate) return [];
     const key = format(selectedDate, 'yyyy-MM-dd');
-    return (hearingsByDate.get(key) || []).map(h => {
-      const c = cases.find(c => c.id === h.caseId);
-      return { hearing: h, caseData: c };
+    const dateHearings = hearingsByDate.get(key) || [];
+    const caseIds = new Set(dateHearings.map(hearing => hearing.caseId));
+    cases.forEach(caseData => {
+      if (caseData.nextHearingDate === key) caseIds.add(caseData.id);
     });
+
+    return [...caseIds].flatMap(caseId => {
+      const caseData = cases.find(c => c.id === caseId);
+      return caseData
+        ? [{ caseData, hearings: dateHearings.filter(hearing => hearing.caseId === caseId) }]
+        : [];
+    }).sort((a, b) => a.caseData.clientName.localeCompare(b.caseData.clientName));
   }, [selectedDate, hearingsByDate, cases]);
 
   const weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -45,9 +53,9 @@ export default function CalendarPage() {
 
       {/* Month Navigation */}
       <div className="flex items-center justify-between px-4 mb-3">
-        <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 rounded-lg hover:bg-muted transition-colors"><ChevronLeft className="w-5 h-5 text-foreground" /></button>
+        <button onClick={() => { setCurrentMonth(subMonths(currentMonth, 1)); setSelectedDate(null); }} aria-label="Previous month" className="flex size-11 items-center justify-center rounded-lg hover:bg-muted transition-colors"><ChevronLeft className="w-5 h-5 text-foreground" /></button>
         <h2 className="text-[15px] font-semibold text-foreground">{format(currentMonth, 'MMMM yyyy')}</h2>
-        <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 rounded-lg hover:bg-muted transition-colors"><ChevronRight className="w-5 h-5 text-foreground" /></button>
+        <button onClick={() => { setCurrentMonth(addMonths(currentMonth, 1)); setSelectedDate(null); }} aria-label="Next month" className="flex size-11 items-center justify-center rounded-lg hover:bg-muted transition-colors"><ChevronRight className="w-5 h-5 text-foreground" /></button>
       </div>
 
       {/* Calendar Grid */}
@@ -58,13 +66,20 @@ export default function CalendarPage() {
             {Array.from({ length: startPadding }).map((_, i) => <div key={`pad-${i}`} />)}
             {days.map(day => {
               const key = format(day, 'yyyy-MM-dd');
-              const count = hearingsByDate.get(key)?.length || 0;
+              const dateHearingCaseIds = new Set((hearingsByDate.get(key) || []).map(hearing => hearing.caseId));
+              cases.forEach(caseData => {
+                if (caseData.nextHearingDate === key) dateHearingCaseIds.add(caseData.id);
+              });
+              const count = dateHearingCaseIds.size;
               const isSelected = selectedDate && isSameDay(day, selectedDate);
               const isToday = isSameDay(day, new Date());
-              const hasOverdue = hearingsByDate.get(key)?.some(h => !h.completed && day < new Date()) || false;
+              const hasOverdue = day < startOfDay(new Date()) && (
+                hearingsByDate.get(key)?.some(h => !h.completed) ||
+                cases.some(caseData => caseData.nextHearingDate === key)
+              );
               return (
                 <button key={key} onClick={() => setSelectedDate(day)}
-                  className={`flex flex-col items-center py-1.5 rounded-lg transition-colors ${isSelected ? 'bg-navy-900 text-white dark:bg-white dark:text-navy-900' : isToday ? 'bg-gold-400/15 text-gold-500' : 'hover:bg-muted'}`}>
+                  className={`flex min-h-11 flex-col items-center justify-center py-1 rounded-lg transition-colors ${isSelected ? 'bg-navy-900 text-white dark:bg-white dark:text-navy-900' : isToday ? 'bg-gold-400/15 text-gold-500' : 'hover:bg-muted'}`}>
                   <span className={`text-[13px] font-medium ${!isSelected && !isToday ? 'text-card-foreground' : ''}`}>{format(day, 'd')}</span>
                   {count > 0 && (
                     <div className="flex gap-0.5 mt-0.5">
@@ -80,25 +95,29 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Selected Date Hearings */}
+      {/* Selected Date Cases */}
       {selectedDate && (
         <div className="px-4 pb-4">
           <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{format(selectedDate, 'EEEE, d MMMM')}</div>
-          {selectedHearings.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground text-sm">No hearings on this date</div>
-          ) : selectedHearings.map(({ hearing: h, caseData: c }) => (
-            <div key={h.id} onClick={() => c && router.push(`/cases/${c.id}`)}
+          {selectedCases.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">No cases or hearings on this date</div>
+          ) : <div className="motion-stagger">{selectedCases.map(({ caseData: c, hearings: caseHearings }) => (
+            <button key={c.id} type="button" onClick={() => router.push(`/case/?id=${encodeURIComponent(c.id)}`)}
               className="bg-card rounded-[14px] shadow-[0_1px_4px_rgba(11,42,91,0.08),0_0_0_1px_rgba(11,42,91,0.06)] dark:shadow-[0_1px_4px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.06)] p-3.5 mb-2.5 cursor-pointer case-card-hover">
               <div className="flex justify-between items-start">
                 <div className="min-w-0 flex-1">
-                  <div className="text-[14px] font-semibold text-card-foreground truncate">{c?.clientName || 'Unknown'}</div>
-                  <div className="text-xs text-muted-foreground truncate">{c?.caseNumber} · {h.time || 'No time set'}</div>
+                  <div className="text-[14px] font-semibold text-card-foreground truncate">{c.clientName}</div>
+                  <div className="text-xs text-muted-foreground truncate">{c.caseNumber} · {c.court}</div>
                 </div>
-                <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold flex-shrink-0 ml-2 ${h.completed ? 'bg-slate-100 dark:bg-slate-800 text-slate-500' : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{h.completed ? 'Done' : 'Pending'}</span>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold flex-shrink-0 ml-2 ${c.status === 'Closed' ? 'bg-slate-100 dark:bg-slate-800 text-slate-500' : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{c.status}</span>
               </div>
-              {h.notes && <div className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{h.notes}</div>}
-            </div>
-          ))}
+              {caseHearings.length > 0 && (
+                <div className="text-xs text-muted-foreground mt-1.5">
+                  {caseHearings.map(hearing => hearing.time).filter(Boolean).join(' · ') || 'Hearing scheduled'}
+                </div>
+              )}
+            </button>
+          ))}</div>}
         </div>
       )}
     </div>

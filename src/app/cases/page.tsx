@@ -1,5 +1,6 @@
 "use client";
 import { useState, useMemo } from 'react';
+import { format } from 'date-fns';
 import { useStore } from '@/lib/store';
 import { CaseCard } from '@/components/case-card';
 import { AddCaseSheet } from '@/components/add-case-sheet';
@@ -16,10 +17,30 @@ export default function CasesPage() {
     if (filter === 'active') list = list.filter(c => c.status === 'Active');
     if (filter === 'closed') list = list.filter(c => c.status === 'Closed');
     if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(c => c.clientName.toLowerCase().includes(q) || c.caseNumber.toLowerCase().includes(q) || c.court.toLowerCase().includes(q));
+      const q = search.trim().toLocaleLowerCase();
+      const phoneQuery = search.replace(/\D/g, '');
+      list = list.filter(c => [
+        c.clientName,
+        c.caseNumber,
+        c.court,
+        c.oppositeParty,
+        c.cnrNumber,
+      ].some(value => value?.toLocaleLowerCase().includes(q)) ||
+        Boolean(phoneQuery && c.clientPhone?.replace(/\D/g, '').includes(phoneQuery)));
     }
-    return list;
+    const today = format(new Date(), 'yyyy-MM-dd');
+    return [...list].sort((a, b) => {
+      const aDate = a.nextHearingDate;
+      const bDate = b.nextHearingDate;
+      if (!aDate && !bDate) return b.createdAt.localeCompare(a.createdAt);
+      if (!aDate) return 1;
+      if (!bDate) return -1;
+
+      const aUpcoming = aDate >= today;
+      const bUpcoming = bDate >= today;
+      if (aUpcoming !== bUpcoming) return aUpcoming ? -1 : 1;
+      return aUpcoming ? aDate.localeCompare(bDate) : bDate.localeCompare(aDate);
+    });
   }, [cases, filter, search]);
 
   const tabs: { key: typeof filter; label: string; count: number }[] = [
@@ -39,7 +60,7 @@ export default function CasesPage() {
       <div className="px-4 mb-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input className="w-full pl-9 pr-3 py-2.5 bg-card border border-border rounded-xl text-sm placeholder:text-muted-foreground outline-none focus:border-navy-700 transition-colors" placeholder="Search by name, case number, or court…" value={search} onChange={e => setSearch(e.target.value)} />
+          <input className="w-full pl-9 pr-3 py-2.5 bg-card border border-border rounded-xl text-sm placeholder:text-muted-foreground outline-none focus:border-navy-700 transition-colors" placeholder="Search name, phone, case no., opposite party, CNR…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
 
@@ -47,14 +68,14 @@ export default function CasesPage() {
       <div className="flex gap-2 px-4 mb-4">
         {tabs.map(t => (
           <button key={t.key} onClick={() => setFilter(t.key)}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${filter === t.key ? 'bg-navy-900 text-white dark:bg-white dark:text-navy-900' : 'bg-muted text-muted-foreground hover:bg-border'}`}>
+            className={`min-h-10 px-3 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${filter === t.key ? 'bg-navy-900 text-white dark:bg-white dark:text-navy-900' : 'bg-muted text-muted-foreground hover:bg-border'}`}>
             {t.label} ({t.count})
           </button>
         ))}
       </div>
 
       {/* Case List */}
-      <div className="px-4 pb-4">
+      <div className="motion-stagger px-4 pb-4">
         {filtered.length > 0 ? filtered.map(c => <CaseCard key={c.id} caseData={c} showActions={false} />) : (
           <div className="text-center py-16 text-muted-foreground">
             <div className="text-4xl mb-3">🔍</div>
@@ -65,7 +86,7 @@ export default function CasesPage() {
       </div>
 
       {/* FAB */}
-      <button onClick={() => setAddOpen(true)} className="fixed bottom-[88px] right-4 w-[52px] h-[52px] bg-gold-500 rounded-2xl flex items-center justify-center shadow-[0_4px_16px_rgba(217,119,6,0.4)] hover:scale-105 active:scale-95 transition-transform z-30 fab-animate">
+      <button onClick={() => setAddOpen(true)} aria-label="Add case" className="app-fab fab-enter fixed w-[52px] h-[52px] bg-gold-500 rounded-2xl flex items-center justify-center shadow-[0_4px_16px_rgba(217,119,6,0.4)] transition-transform z-30">
         <Plus className="w-6 h-6 text-white" strokeWidth={2.5} />
       </button>
       <AddCaseSheet open={addOpen} onOpenChange={setAddOpen} />

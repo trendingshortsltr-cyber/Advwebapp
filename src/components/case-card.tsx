@@ -6,10 +6,10 @@ import { format, parseISO, isToday, isBefore, startOfDay } from 'date-fns';
 
 type CardType = 'overdue' | 'today' | 'active' | 'closed';
 
-function getCardType(c: Case): CardType {
+function getCardType(c: Case, hearingDate = c.nextHearingDate): CardType {
   if (c.status === 'Closed') return 'closed';
-  if (!c.nextHearingDate) return 'active';
-  const d = parseISO(c.nextHearingDate);
+  if (!hearingDate) return 'active';
+  const d = parseISO(hearingDate);
   if (isToday(d)) return 'today';
   if (isBefore(d, startOfDay(new Date()))) return 'overdue';
   return 'active';
@@ -24,10 +24,11 @@ const chipStyles: Record<CardType, string> = {
 };
 const chipLabels: Record<CardType, string> = { overdue: 'Overdue', today: 'Today', active: 'Active', closed: 'Closed' };
 
-export function CaseCard({ caseData, hearingTime, showActions = true }: { caseData: Case; hearingTime?: string; showActions?: boolean }) {
+export function CaseCard({ caseData, hearingTime, hearingDate, showActions = true }: { caseData: Case; hearingTime?: string; hearingDate?: string; showActions?: boolean }) {
   const router = useRouter();
-  const type = getCardType(caseData);
-  const dateLabel = caseData.nextHearingDate ? (() => { try { return format(parseISO(caseData.nextHearingDate), 'd MMM'); } catch { return ''; } })() : '';
+  const effectiveHearingDate = hearingDate ?? caseData.nextHearingDate;
+  const type = getCardType(caseData, effectiveHearingDate);
+  const dateLabel = effectiveHearingDate ? (() => { try { return format(parseISO(effectiveHearingDate), 'd MMM'); } catch { return ''; } })() : '';
 
   const handleCall = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -39,7 +40,7 @@ export function CaseCard({ caseData, hearingTime, showActions = true }: { caseDa
   };
 
   return (
-    <div onClick={() => router.push(`/cases/${caseData.id}`)}
+    <div onClick={() => router.push(`/case/?id=${encodeURIComponent(caseData.id)}`)}
       className="bg-card rounded-[14px] shadow-[0_1px_4px_rgba(11,42,91,0.08),0_0_0_1px_rgba(11,42,91,0.06)] dark:shadow-[0_1px_4px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.06)] flex overflow-hidden cursor-pointer case-card-hover mb-2.5">
       <div className={`w-1 rounded-l-[14px] flex-shrink-0 ${borderColors[type]}`} />
       <div className="flex-1 min-w-0 p-3.5 pl-3">
@@ -54,13 +55,13 @@ export function CaseCard({ caseData, hearingTime, showActions = true }: { caseDa
         </div>
         {showActions && caseData.clientPhone && (
           <div className="flex gap-1.5 mt-2.5">
-            <button onClick={handleCall} className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-border bg-card text-[11px] font-medium text-muted-foreground hover:border-green-status hover:text-green-status transition-colors">
+            <button onClick={handleCall} aria-label={`Call ${caseData.clientName}`} className="flex min-h-10 items-center gap-1.5 px-3 rounded-full border border-border bg-card text-xs font-medium text-muted-foreground hover:border-green-status hover:text-green-status transition-colors">
               <Phone className="w-[11px] h-[11px]" />Call
             </button>
-            <button onClick={handleWA} className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-border bg-card text-[11px] font-medium text-muted-foreground hover:border-[#25D366] hover:text-[#25D366] transition-colors">
+            <button onClick={handleWA} aria-label={`WhatsApp ${caseData.clientName}`} className="flex min-h-10 items-center gap-1.5 px-3 rounded-full border border-border bg-card text-xs font-medium text-muted-foreground hover:border-[#25D366] hover:text-[#25D366] transition-colors">
               <MessageCircle className="w-[11px] h-[11px]" />WhatsApp
             </button>
-            <button onClick={(e) => { e.stopPropagation(); router.push(`/cases/${caseData.id}`); }} className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-border bg-card text-[11px] font-medium text-muted-foreground hover:bg-muted transition-colors">
+            <button onClick={(e) => { e.stopPropagation(); router.push(`/case/?id=${encodeURIComponent(caseData.id)}`); }} className="flex min-h-10 items-center gap-1.5 px-3 rounded-full border border-border bg-card text-xs font-medium text-muted-foreground hover:bg-muted transition-colors">
               Open <ChevronRight className="w-3 h-3" />
             </button>
           </div>

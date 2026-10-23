@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Sans_Devanagari } from "next/font/google";
 import "./globals.css";
 import { DataProvider } from "@/lib/store";
@@ -13,14 +13,19 @@ const notoSansDevanagari = Noto_Sans_Devanagari({ variable: "--font-devanagari",
 export const metadata: Metadata = {
   title: "AdvDiary 2.0",
   description: "Legal Case Management PWA for Indian Advocates",
-  viewport: "width=device-width, initial-scale=1, viewport-fit=cover",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0B2A5B",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <meta name="theme-color" content="#0B2A5B" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="manifest" href="/manifest.json" />
@@ -31,7 +36,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <Toaster>
               <DataProvider>
                 <div className="flex flex-col min-h-screen max-w-lg mx-auto">
-                  <main className="flex-1 pb-[72px]">
+                  <main className="flex-1 app-main">
                     {children}
                   </main>
                   <BottomNav />
