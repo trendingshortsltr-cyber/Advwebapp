@@ -22,6 +22,20 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 For a production preview of the static export, run `npm run build` followed by `npm run start`.
 
+## Deploy on Vercel
+
+Import `trendingshortsltr-cyber/Advwebapp` into Vercel and deploy the `main` branch. The checked-in `vercel.json` configures the production build, static export directory, and security headers.
+
+In the Vercel project settings, add the Firebase web configuration variables from `.env.example` for each environment you use (`NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`, and `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` when configured). These values are embedded in the browser bundle; the API key is not a secret. Restrict it in Google Cloud Console to the deployed site and required APIs. Never add service-account credentials.
+
+Add the assigned Vercel domain to Firebase Authentication's authorized domains, or Google sign-in will fail. Firestore remains hosted by Firebase; deploy its rules and indexes separately when they change:
+
+```powershell
+firebase deploy --only firestore:rules,firestore:indexes --project adv-diary-100ff
+```
+
+The Android Trusted Web Activity currently opens the Firebase Hosting domain. Update its host and Digital Asset Links configuration separately before changing that Android app to use a Vercel domain.
+
 ## Android APK
 
 The Android app is a Trusted Web Activity that opens the Firebase-hosted PWA. It requires internet access for Firebase sign-in and cross-device case sync; it is intended for direct APK sharing, not Play Store publishing.
@@ -30,7 +44,6 @@ Build and deploy the web app from the repository root:
 
 ```powershell
 npm run build
-firebase deploy --only hosting --project adv-diary-100ff
 ```
 
 Build the signed APK from this directory after the Android JDK and SDK are configured:
@@ -50,9 +63,7 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Hosting
-
-Production builds use Next.js static export and are deployed to Firebase Hosting as described above. The app uses Firebase Authentication and Firestore, so sign-in and cross-device data sync require an internet connection.
+The app uses Firebase Authentication and Firestore, so sign-in and cross-device data sync require an internet connection.
 
 ## Security
 
